@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<title>Unstuck</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232563eb'/%3E%3Crect x='22' y='26' width='20' height='30' rx='4' fill='white'/%3E%3Crect x='26' y='18' width='12' height='9' rx='2' fill='white' opacity='.7'/%3E%3Cpath d='M20 14a17 17 0 0 1 24 0M25 9a24 24 0 0 0 0 0' stroke='white' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+<!--
+  Unstuck — a WebDAV file manager for SanDisk Connect wireless sticks.
+  Copy this file onto the stick and open it from the stick's address.
+  Same origin as the stick's WebDAV server, so no CORS and no install.
+-->
+<style>
+:root {
+  --bg: #f5f6f8; --surface: #ffffff; --text: #16191d; --muted: #5d6875; --line: #e2e5ea;
+  --hover: #eef1f5; --accent: #2563eb; --on-accent: #ffffff; --danger: #c62828;
+  --warn-bg: #fff4e5; --warn-text: #7a4100; --radius: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1115; --surface: #161a20; --text: #e7eaee; --muted: #8d97a5; --line: #252b34;
+    --hover: #1d232b; --accent: #5b8cff; --on-accent: #0b0d10; --danger: #ff6b6b;
+    --warn-bg: #2b2112; --warn-text: #ffcf8a;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+body.noscroll { overflow: hidden; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+.i { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+header { position: sticky; top: 0; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); }
+.bar1 { display: flex; align-items: center; gap: 4px; padding: 8px 8px 4px 16px; }
+.bar1 h1 { font-size: 18px; margin: 0 auto 0 0; letter-spacing: -.01em; }
+.icon-btn { display: inline-grid; place-items: center; width: 42px; height: 42px; border: 0;
+  background: none; border-radius: 50%; color: var(--text); }
+.icon-btn:hover { background: var(--hover); }
+.icon-btn:disabled { opacity: .35; cursor: default; background: none; }
+.crumbs { display: flex; gap: 2px; overflow-x: auto; padding: 0 12px; scrollbar-width: none; white-space: nowrap; }
+.crumbs::-webkit-scrollbar { display: none; }
+.crumbs button { border: 0; background: none; padding: 6px 6px; border-radius: 8px; color: var(--muted); }
+.crumbs button:last-child { color: var(--text); font-weight: 600; }
+.crumbs button:hover { background: var(--hover); }
+.crumbs .sep { color: var(--muted); align-self: center; }
+.bar2 { display: flex; gap: 8px; padding: 6px 16px 10px; }
+.bar2 input, .bar2 select { height: 36px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg); padding: 0 10px; min-width: 0; }
+.bar2 input { flex: 1; }
+.busy-line { height: 2px; overflow: hidden; }
+.busy .busy-line::after { content: ""; display: block; height: 100%; width: 30%; background: var(--accent);
+  animation: slide 1s ease-in-out infinite; }
+@keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(400%); } }
+
+main { max-width: 900px; margin: 0 auto; padding: 8px 0 120px; }
+.msg { margin: 12px 16px; padding: 12px 14px; border-radius: var(--radius); background: var(--warn-bg);
+  color: var(--warn-text); }
+.msg p { margin: 0 0 6px; } .msg p:last-child { margin: 0; }
+.msg button { margin-top: 8px; border: 0; border-radius: 8px; padding: 6px 12px; background: var(--accent); color: var(--on-accent); }
+ul.list { list-style: none; margin: 0; padding: 0 8px; }
+.row { display: flex; align-items: center; border-radius: var(--radius); }
+.row:hover { background: var(--hover); }
+.row-main { flex: 1; min-width: 0; display: grid; grid-template-columns: 40px 1fr; grid-template-rows: auto auto;
+  column-gap: 12px; align-items: center; text-align: left; border: 0; background: none; padding: 10px 8px; }
+.row-main > .ico { grid-row: 1 / 3; display: grid; place-items: center; width: 40px; height: 40px;
+  border-radius: 10px; background: var(--hover); color: var(--muted); overflow: hidden; }
+.row-main > .ico.dir { color: var(--accent); }
+.ico img { width: 100%; height: 100%; object-fit: cover; }
+.name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meta { color: var(--muted); font-size: 13px; }
+.empty { text-align: center; color: var(--muted); padding: 48px 16px; }
+footer.space { text-align: center; color: var(--muted); font-size: 13px; padding: 8px 16px; }
+
+.up { position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 6;
+  max-width: 600px; margin: 0 auto; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 12px 14px; box-shadow: 0 6px 24px rgb(0 0 0 / .18); }
+.up-row { display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.up-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.link { border: 0; background: none; color: var(--accent); padding: 4px; }
+.track { height: 6px; border-radius: 3px; background: var(--hover); overflow: hidden; }
+.track div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  z-index: 9; background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px;
+  max-width: calc(100% - 32px); font-size: 14px; }
+.drop::after { content: "Drop files to upload"; position: fixed; inset: 8px; z-index: 8; display: grid; place-items: center;
+  border: 3px dashed var(--accent); border-radius: 16px; background: rgb(37 99 235 / .08); font-size: 20px; color: var(--accent); }
+
+dialog { border: 0; border-radius: 16px; padding: 8px; background: var(--surface); color: var(--text);
+  width: min(420px, calc(100% - 32px)); box-shadow: 0 10px 40px rgb(0 0 0 / .3); }
+dialog::backdrop { background: rgb(0 0 0 / .45); }
+.sheet-head { outline: none; padding: 10px 12px 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.sheet-head b { display: block; word-break: break-word; }
+.sheet-head span { color: var(--muted); font-size: 13px; }
+.sheet-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; border: 0; background: none;
+  border-radius: 10px; text-align: left; text-decoration: none; color: var(--text); }
+.sheet-btn:hover { background: var(--hover); }
+.sheet-btn.danger { color: var(--danger); }
+.settings { padding: 8px 8px 4px; }
+.settings h2 { font-size: 17px; margin: 4px 0 12px; }
+.settings label { display: block; margin: 0 0 14px; }
+.settings label.check { display: flex; gap: 10px; align-items: center; }
+.settings input[type=text] { display: block; width: 100%; margin-top: 4px; height: 38px; padding: 0 10px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.settings small { color: var(--muted); }
+.settings .actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; }
+.settings .actions a { color: var(--accent); font-size: 14px; }
+.btn { border: 0; border-radius: 10px; padding: 8px 16px; background: var(--accent); color: var(--on-accent); }
+
+.viewer { position: fixed; inset: 0; z-index: 10; background: #000; color: #fff; display: flex; flex-direction: column; }
+.viewer[hidden] { display: none; }
+.v-top { display: flex; align-items: center; gap: 4px; padding: 6px 6px calc(6px) 12px;
+  padding-top: calc(6px + env(safe-area-inset-top)); background: rgb(0 0 0 / .6); }
+.v-top .icon-btn { color: #fff; }
+.v-top .icon-btn:hover { background: rgb(255 255 255 / .12); }
+.v-title { flex: 1; min-width: 0; }
+.v-title b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.v-title span { font-size: 12px; opacity: .7; }
+.v-stage { flex: 1; min-height: 0; display: grid; place-items: center; position: relative; touch-action: pan-y pinch-zoom; }
+.v-stage img, .v-stage video { max-width: 100%; max-height: 100%; object-fit: contain; }
+.v-stage audio { width: min(500px, 90%); }
+.v-nav { position: absolute; top: 50%; transform: translateY(-50%); background: rgb(0 0 0 / .4) !important; color: #fff; }
+#v-prev { left: 8px; } #v-next { right: 8px; }
+@media (hover: none) { .v-nav { display: none; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-folder-plus" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM12 10v6M9 13h6"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></symbol>
+  <symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></symbol>
+  <symbol id="i-audio" viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4M6 10l6-6 6 6M4 20h16"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v12M6 10l6 6 6-6M4 20h16"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="19" r="1.6" fill="currentColor"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-open" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></symbol>
+</svg>
+
+<header>
+  <div class="bar1">
+    <h1>Unstuck</h1>
+    <button class="icon-btn" id="b-upload" title="Upload files" aria-label="Upload files"><svg class="i"><use href="#i-upload"/></svg></button>
+    <button class="icon-btn" id="b-mkdir" title="New folder" aria-label="New folder"><svg class="i"><use href="#i-folder-plus"/></svg></button>
+    <button class="icon-btn" id="b-refresh" title="Refresh" aria-label="Refresh"><svg class="i"><use href="#i-refresh"/></svg></button>
+    <button class="icon-btn" id="b-settings" title="Settings" aria-label="Settings"><svg class="i"><use href="#i-sliders"/></svg></button>
+  </div>
+  <nav class="crumbs" id="crumbs" aria-label="Folder path"></nav>
+  <div class="bar2">
+    <input id="filter" type="search" placeholder="Filter this folder" aria-label="Filter this folder" autocomplete="off">
+    <select id="sort" aria-label="Sort">
+      <option value="name">Name</option>
+      <option value="date">Newest</option>
+      <option value="size">Largest</option>
+    </select>
+  </div>
+  <div class="busy-line"></div>
+</header>
+
+<main>
+  <div id="msg" class="msg" hidden></div>
+  <ul class="list" id="list"></ul>
+  <div class="empty" id="empty" hidden>Nothing here.</div>
+  <footer class="space" id="space"></footer>
+</main>
+
+<input type="file" id="picker" multiple hidden>
+
+<div class="up" id="up" hidden>
+  <div class="up-row"><span id="up-text"></span><button class="link" id="up-cancel">Cancel</button></div>
+  <div class="track"><div id="up-bar"></div></div>
+</div>
+
+<dialog id="sheet">
+  <div class="sheet-head" tabindex="-1" autofocus><b id="sheet-name"></b><span id="sheet-meta"></span></div>
+  <button class="sheet-btn" data-act="open"><svg class="i"><use href="#i-open"/></svg>Open</button>
+  <a class="sheet-btn" id="sheet-dl" download><svg class="i"><use href="#i-download"/></svg>Download</a>
+  <button class="sheet-btn" data-act="rename"><svg class="i"><use href="#i-edit"/></svg>Rename</button>
+  <button class="sheet-btn danger" data-act="delete"><svg class="i"><use href="#i-trash"/></svg>Delete</button>
+</dialog>
+
+<dialog id="settings">
+  <form class="settings" method="dialog">
+    <h2>Settings</h2>
+    <label>WebDAV root
+      <input type="text" id="s-root" placeholder="auto-detect" autocapitalize="off" spellcheck="false">
+      <small id="s-root-hint"></small>
+    </label>
+    <label class="check"><input type="checkbox" id="s-hidden"> Show hidden and system files</label>
+    <label class="check"><input type="checkbox" id="s-thumbs"> Photo thumbnails <small>(slower)</small></label>
+    <div class="actions">
+      <a href="/myconnect/" target="_blank" rel="noopener">Stick's own settings page</a>
+      <button class="btn" value="save">Done</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="viewer" id="viewer" hidden>
+  <div class="v-top">
+    <div class="v-title"><b id="v-name"></b><span id="v-count"></span></div>
+    <a class="icon-btn" id="v-dl" download title="Download" aria-label="Download"><svg class="i"><use href="#i-download"/></svg></a>
+    <button class="icon-btn" id="v-close" title="Close" aria-label="Close"><svg class="i"><use href="#i-close"/></svg></button>
+  </div>
+  <div class="v-stage" id="v-stage"></div>
+  <button class="icon-btn v-nav" id="v-prev" aria-label="Previous"><svg class="i"><use href="#i-left"/></svg></button>
+  <button class="icon-btn v-nav" id="v-next" aria-label="Next"><svg class="i"><use href="#i-right"/></svg></button>
+</div>
+
+<script>
+'use strict';
+
+// ---------- small helpers ----------
+const $ = s => document.querySelector(s);
+const IMG = /\.(jpe?g|png|gif|webp|avif|bmp|svg)$/i;
+const VID = /\.(mp4|m4v|webm|mov|mkv|3gp)$/i;
+const AUD = /\.(mp3|m4a|aac|ogg|oga|opus|wav|flac)$/i;
+const SYSTEM = new Set(['System Volume Information', '$RECYCLE.BIN', 'FOUND.000', 'LOST.DIR']);
+
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('unstuck.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('unstuck.' + k, JSON.stringify(v)); } catch {} },
+};
+
+const state = {
+  root: null, path: null, entries: [], filter: '',
+  sort: store.get('sort', 'name'), showHidden: store.get('hidden', false), thumbs: store.get('thumbs', false),
+};
+
+class HttpError extends Error {
+  constructor(status, what) { super(`${what} failed (HTTP ${status})`); this.status = status; }
+}
+
+const enc = p => p.split('/').map(encodeURIComponent).join('/');
+const trimSlash = p => (p.length > 1 ? p.replace(/\/+$/, '') : p);
+const isHidden = name => name.startsWith('.') || SYSTEM.has(name);
+const isMedia = name => IMG.test(name) || VID.test(name) || AUD.test(name);
+const text = el => (el ? el.textContent.trim() : '');
+
+function h(tag, attrs = {}, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  el.append(...kids.filter(x => x != null && x !== false));
+  return el;
+}
+
+function icon(name) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const s = document.createElementNS(NS, 'svg');
+  s.setAttribute('class', 'i');
+  s.setAttribute('aria-hidden', 'true');
+  const u = document.createElementNS(NS, 'use');
+  u.setAttribute('href', '#i-' + name);
+  s.append(u);
+  return s;
+}
+
+function fmtSize(n) {
+  if (n == null || isNaN(n)) return '';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return (i ? n.toFixed(n < 10 ? 1 : 0) : n) + ' ' + units[i];
+}
+
+function fmtDate(d) {
+  if (!d || isNaN(d)) return '';
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) + ', ' +
+    d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
+let toastTimer;
+function toast(msg, ms = 3000) {
+  document.querySelector('.toast')?.remove();
+  clearTimeout(toastTimer);
+  const t = h('div', { class: 'toast', role: 'status' }, msg);
+  document.body.append(t);
+  toastTimer = setTimeout(() => t.remove(), ms);
+}
+
+function busy(on) { document.body.classList.toggle('busy', on); }
+
+function showMsg(lines, action) {
+  const box = $('#msg');
+  box.replaceChildren(...lines.map(l => h('p', {}, l)));
+  if (action) box.append(h('button', { onclick: action.run }, action.label));
+  box.hidden = false;
+}
+function clearMsg() { $('#msg').hidden = true; }
+
+// ---------- WebDAV ----------
+const PROPFIND_BODY = '<?xml version="1.0" encoding="utf-8"?>' +
+  '<d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getcontentlength/><d:getlastmodified/>' +
+  '<d:getcontenttype/><d:quota-available-bytes/><d:quota-used-bytes/></d:prop></d:propfind>';
+
+async function propfind(path, depth) {
+  const url = enc(path);
+  let res = await fetch(url, {
+    method: 'PROPFIND', cache: 'no-store',
+    headers: { Depth: String(depth), 'Content-Type': 'application/xml; charset=utf-8' }, body: PROPFIND_BODY,
+  });
+  // Some embedded servers choke on a request body; retry as a plain allprop.
+  if ([400, 415, 422, 500, 501].includes(res.status)) {
+    res = await fetch(url, { method: 'PROPFIND', cache: 'no-store', headers: { Depth: String(depth) } });
+  }
+  // The stick answers PROPFIND / with a redirect to its own web UI; that is not a listing.
+  if (res.status !== 207 || res.redirected) throw new HttpError(res.redirected ? 301 : res.status, 'Listing');
+  return parseMultistatus(await res.text(), path);
+}
+
+function parseMultistatus(xml, base) {
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length) throw new Error('The stick sent a listing I could not read.');
+  let self = null;
+  const entries = [];
+  for (const r of doc.getElementsByTagNameNS('DAV:', 'response')) {
+    let p;
+    try { p = decodeURIComponent(new URL(text(r.getElementsByTagNameNS('DAV:', 'href')[0]), location.href).pathname); }
+    catch { continue; }
+    const props = {};
+    for (const ps of r.getElementsByTagNameNS('DAV:', 'propstat')) {
+      const status = text(ps.getElementsByTagNameNS('DAV:', 'status')[0]);
+      if (status && !/\s2\d\d(\s|$)/.test(status)) continue;
+      const prop = ps.getElementsByTagNameNS('DAV:', 'prop')[0];
+      if (prop) for (const el of prop.children) if (el.namespaceURI === 'DAV:') props[el.localName] = el;
+    }
+    const isDir = props.resourcetype
+      ? props.resourcetype.getElementsByTagNameNS('DAV:', 'collection').length > 0
+      : p.endsWith('/');
+    const path = isDir && !p.endsWith('/') ? p + '/' : p;
+    const num = k => (props[k] && text(props[k]) !== '' ? Number(text(props[k])) : null);
+    const e = {
+      path, isDir, name: trimSlash(path).split('/').pop(),
+      size: isDir ? null : num('getcontentlength'),
+      mtime: props.getlastmodified ? new Date(text(props.getlastmodified)) : null,
+      free: num('quota-available-bytes'), used: num('quota-used-bytes'),
+    };
+    if (trimSlash(path) === trimSlash(base)) self = e;
+    else if (e.name) entries.push(e);
+  }
+  return { self, entries };
+}
+
+async function dav(method, path, headers = {}) {
+  const res = await fetch(enc(path), { method, headers, cache: 'no-store' });
+  if (!res.ok) throw new HttpError(res.status, method);
+  return res;
+}
+
+function putFile(file, path, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    up.xhr = xhr;
+    xhr.open('PUT', enc(path));
+    xhr.upload.onprogress = e => e.lengthComputable && onProgress(e.loaded / e.total);
+    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new HttpError(xhr.status, 'Upload')));
+    xhr.onerror = () => reject(new Error('Network error'));
+    xhr.onabort = () => reject(Object.assign(new Error('Cancelled'), { name: 'AbortError' }));
+    xhr.send(file);
+  });
+}
+
+// Find where the WebDAV tree starts: saved setting, "/", "/files/" (AirStash layout), then this page's folders.
+async function detectRoot() {
+  const candidates = [];
+  const saved = store.get('root', '');
+  if (saved) candidates.push(saved);
+  candidates.push('/files/', '/');
+  const ancestors = [];
+  for (let d = location.pathname.replace(/[^/]*$/, ''); d && d !== '/'; d = d.replace(/[^/]+\/$/, '')) ancestors.push(d);
+  candidates.push(...ancestors.reverse());
+  for (const c of [...new Set(candidates.map(c => (c.endsWith('/') ? c : c + '/')))]) {
+    try { await propfind(c, 0); return c; }
+    catch (err) { if (err.status === 401 || err instanceof TypeError) throw err; }
+  }
+  return null;
+}
+
+// ---------- browsing ----------
+let loadSeq = 0;
+async function load(path) {
+  const seq = ++loadSeq;
+  busy(true);
+  try {
+    const { self, entries } = await propfind(path, 1);
+    if (seq !== loadSeq) return;
+    const moved = path !== state.path;
+    state.path = path;
+    state.entries = entries;
+    if (moved) { state.filter = ''; $('#filter').value = ''; scrollTo(0, 0); }
+    clearMsg();
+    showSpace(self);
+    render();
+  } catch (err) {
+    if (seq === loadSeq) fail(err, path);
+  } finally {
+    if (seq === loadSeq) busy(false);
+  }
+}
+
+function go(path) {
+  if (location.hash === '#' + enc(path)) load(path);
+  else location.hash = enc(path);
+}
+
+function route() {
+  let p = state.root;
+  if (location.hash.length > 1) { try { p = decodeURIComponent(location.hash.slice(1)); } catch {} }
+  if (!p.endsWith('/')) p += '/';
+  if (!p.startsWith(state.root)) p = state.root;
+  load(p);
+}
+
+function visibleItems() {
+  const q = state.filter.toLowerCase();
+  const items = state.entries.filter(e => (state.showHidden || !isHidden(e.name)) && (!q || e.name.toLowerCase().includes(q)));
+  const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+  items.sort((a, b) => {
+    if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+    if (state.sort === 'date') return (b.mtime || 0) - (a.mtime || 0) || byName(a, b);
+    if (state.sort === 'size') return (b.size || 0) - (a.size || 0) || byName(a, b);
+    return byName(a, b);
+  });
+  return items;
+}
+
+function render() {
+  renderCrumbs();
+  const items = visibleItems();
+  $('#list').replaceChildren(...items.map(row));
+  $('#empty').hidden = items.length > 0;
+  $('#empty').textContent = state.filter ? 'No matches.' : 'This folder is empty.';
+}
+
+function renderCrumbs() {
+  const nav = $('#crumbs');
+  const parts = state.path.slice(state.root.length).split('/').filter(Boolean);
+  const kids = [h('button', { onclick: () => go(state.root) }, 'Stick')];
+  parts.forEach((part, i) => {
+    const target = state.root + parts.slice(0, i + 1).join('/') + '/';
+    kids.push(h('span', { class: 'sep' }, '/'), h('button', { onclick: () => go(target) }, part));
+  });
+  nav.replaceChildren(...kids);
+  nav.scrollLeft = nav.scrollWidth;
+}
+
+function row(e) {
+  const kind = e.isDir ? 'folder' : IMG.test(e.name) ? 'image' : VID.test(e.name) ? 'video' : AUD.test(e.name) ? 'audio' : 'file';
+  const ico = h('span', { class: 'ico' + (e.isDir ? ' dir' : '') });
+  if (state.thumbs && kind === 'image') ico.append(h('img', { src: enc(e.path), alt: '', loading: 'lazy', decoding: 'async' }));
+  else ico.append(icon(kind));
+  const meta = e.isDir ? fmtDate(e.mtime) : [fmtSize(e.size), fmtDate(e.mtime)].filter(Boolean).join(' · ');
+  return h('li', { class: 'row' },
+    h('button', { class: 'row-main', type: 'button', onclick: () => (e.isDir ? go(e.path) : openFile(e)) },
+      ico, h('span', { class: 'name' }, e.name), h('span', { class: 'meta' }, meta)),
+    h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Actions for ' + e.name, onclick: () => openSheet(e) }, icon('more')));
+}
+
+function showSpace(self) {
+  const el = $('#space');
+  if (self && self.free != null) {
+    el.textContent = fmtSize(self.free) + ' free' + (self.used != null ? ' · ' + fmtSize(self.used) + ' used' : '');
+  } else if (!el.textContent) el.textContent = '';
+}
+
+function fail(err, path) {
+  const retry = () => (state.root ? load(path || state.root) : start());
+  if (err instanceof TypeError) {
+    showMsg(['Can’t reach the stick.',
+      'Check that this device is on the stick’s Wi‑Fi. On Android, if mobile data is on, turn it off while you use the stick.'],
+      { label: 'Try again', run: retry });
+  } else if (err.status === 401 || err.status === 403) {
+    showMsg(['The stick wants a login: user “owner” and the stick’s password. Reload the page to sign in.'],
+      { label: 'Reload', run: () => location.reload() });
+  } else if (err.status === 404 && path !== state.root) {
+    showMsg(['That folder doesn’t exist any more.'], { label: 'Go to top', run: () => go(state.root) });
+  } else {
+    showMsg([err.message], { label: 'Try again', run: retry });
+  }
+}
+
+// ---------- file actions ----------
+function openFile(e) {
+  if (isMedia(e.name)) openViewer(e);
+  else window.open(enc(e.path), '_blank', 'noopener');
+}
+
+let sheetEntry = null;
+function openSheet(e) {
+  sheetEntry = e;
+  $('#sheet-name').textContent = e.name;
+  $('#sheet-meta').textContent = e.isDir ? 'Folder' : [fmtSize(e.size), fmtDate(e.mtime)].filter(Boolean).join(' · ');
+  const dl = $('#sheet-dl');
+  dl.hidden = e.isDir;
+  dl.href = enc(e.path);
+  dl.download = e.name;
+  $('#sheet').showModal();
+}
+
+async function act(what, e) {
+  try {
+    if (what === 'open') return e.isDir ? go(e.path) : openFile(e);
+    if (what === 'rename') {
+      const name = prompt('New name', e.name)?.trim();
+      if (!name || name === e.name) return;
+      if (name.includes('/')) return toast('Names can’t contain “/”.');
+      if (state.entries.some(x => x.name === name)) return toast(`“${name}” already exists here.`);
+      const dest = state.path + name + (e.isDir ? '/' : '');
+      busy(true);
+      await dav('MOVE', e.path, { Destination: new URL(enc(dest), location.href).href, Overwrite: 'F' });
+      toast('Renamed.');
+    }
+    if (what === 'delete') {
+      if (!confirm(`Delete “${e.name}”${e.isDir ? ' and everything in it' : ''}?\nThis can’t be undone.`)) return;
+      busy(true);
+      await dav('DELETE', e.path);
+      toast('Deleted.');
+    }
+    load(state.path);
+  } catch (err) {
+    busy(false);
+    toast(err instanceof TypeError ? 'Can’t reach the stick.' : err.message, 5000);
+  }
+}
+
+async function mkdir() {
+  const name = prompt('Folder name')?.trim();
+  if (!name) return;
+  if (name.includes('/')) return toast('Names can’t contain “/”.');
+  if (state.entries.some(x => x.name === name)) return toast(`“${name}” already exists here.`);
+  try {
+    busy(true);
+    await dav('MKCOL', state.path + name + '/');
+    toast('Folder created.');
+    load(state.path);
+  } catch (err) {
+    busy(false);
+    const unsupported = err.status === 405 || err.status === 501;
+    toast(err instanceof TypeError ? 'Can’t reach the stick.'
+      : unsupported ? 'This stick doesn’t allow new folders over Wi‑Fi. Create them over USB.' : err.message, 6000);
+  }
+}
+
+// ---------- uploads ----------
+const up = { queue: [], running: false, total: 0, done: 0, failed: [], xhr: null };
+
+function enqueue(fileList) {
+  const files = [...fileList];
+  if (!files.length) return;
+  const names = new Set(state.entries.map(e => e.name));
+  const clash = files.filter(f => names.has(f.name)).map(f => f.name);
+  if (clash.length && !confirm(`Replace ${clash.length} existing file${clash.length > 1 ? 's' : ''}?\n\n` +
+    clash.slice(0, 6).join('\n') + (clash.length > 6 ? '\n…' : ''))) return;
+  up.queue.push(...files.map(file => ({ file, dir: state.path })));
+  up.total += files.length;
+  if (!up.running) runQueue();
+}
+
+async function runQueue() {
+  up.running = true;
+  $('#up').hidden = false;
+  let cancelled = false;
+  while (up.queue.length) {
+    const { file, dir } = up.queue.shift();
+    const show = p => {
+      $('#up-text').textContent = `Uploading ${up.done + 1} of ${up.total} · ${file.name} · ${Math.round(p * 100)}%`;
+      $('#up-bar').style.width = ((up.done + p) / up.total * 100).toFixed(1) + '%';
+    };
+    show(0);
+    try { await putFile(file, dir + file.name, show); }
+    catch (err) {
+      if (err.name === 'AbortError') { cancelled = true; break; }
+      up.failed.push(`${file.name}: ${err.message}`);
+    }
+    up.done++;
+  }
+  const ok = up.done - up.failed.length - (cancelled ? 1 : 0);
+  if (up.failed.length) alert(`Uploaded ${ok}, failed ${up.failed.length}:\n\n` + up.failed.join('\n'));
+  else toast(cancelled ? `Cancelled. Uploaded ${ok}.` : `Uploaded ${ok} file${ok === 1 ? '' : 's'}.`);
+  Object.assign(up, { queue: [], running: false, total: 0, done: 0, failed: [], xhr: null });
+  $('#up').hidden = true;
+  $('#up-bar').style.width = '0';
+  load(state.path);
+}
+
+// ---------- viewer ----------
+const viewer = { items: [], i: 0 };
+
+function openViewer(e) {
+  viewer.items = visibleItems().filter(x => !x.isDir && isMedia(x.name));
+  viewer.i = Math.max(0, viewer.items.findIndex(x => x.path === e.path));
+  $('#viewer').hidden = false;
+  document.body.classList.add('noscroll');
+  history.pushState({ viewer: true }, '');
+  showItem();
+}
+
+function showItem() {
+  const e = viewer.items[viewer.i];
+  const url = enc(e.path);
+  const media = IMG.test(e.name) ? h('img', { src: url, alt: e.name })
+    : VID.test(e.name) ? h('video', { src: url, controls: true, autoplay: true, playsinline: true })
+    : h('audio', { src: url, controls: true, autoplay: true });
+  $('#v-stage').replaceChildren(media);
+  $('#v-name').textContent = e.name;
+  $('#v-count').textContent = `${viewer.i + 1} of ${viewer.items.length}`;
+  $('#v-dl').href = url;
+  $('#v-dl').download = e.name;
+  $('#v-prev').disabled = viewer.i === 0;
+  $('#v-next').disabled = viewer.i === viewer.items.length - 1;
+  const next = viewer.items[viewer.i + 1];
+  if (next && IMG.test(next.name)) new Image().src = enc(next.path);
+}
+
+function step(d) {
+  const j = viewer.i + d;
+  if (j >= 0 && j < viewer.items.length) { viewer.i = j; showItem(); }
+}
+
+function hideViewer() {
+  $('#viewer').hidden = true;
+  $('#v-stage').replaceChildren();
+  document.body.classList.remove('noscroll');
+}
+
+// ---------- settings ----------
+function openSettings() {
+  $('#s-root').value = store.get('root', '');
+  $('#s-root-hint').textContent = state.root ? `In use: ${state.root}` : 'Not found yet.';
+  $('#s-hidden').checked = state.showHidden;
+  $('#s-thumbs').checked = state.thumbs;
+  $('#settings').showModal();
+}
+
+async function saveSettings() {
+  state.showHidden = $('#s-hidden').checked;
+  state.thumbs = $('#s-thumbs').checked;
+  store.set('hidden', state.showHidden);
+  store.set('thumbs', state.thumbs);
+  let root = $('#s-root').value.trim();
+  if (root && !root.startsWith('/')) root = '/' + root;
+  if (root && !root.endsWith('/')) root += '/';
+  if (root !== store.get('root', '')) {
+    store.set('root', root);
+    history.replaceState(null, '', location.pathname + location.search);
+    return start();
+  }
+  if (state.path) render();
+}
+
+// ---------- wiring ----------
+$('#b-upload').onclick = () => $('#picker').click();
+$('#picker').onchange = e => { enqueue(e.target.files); e.target.value = ''; };
+$('#b-mkdir').onclick = mkdir;
+$('#b-refresh').onclick = () => (state.root ? load(state.path || state.root) : start());
+$('#b-settings').onclick = openSettings;
+$('#settings').addEventListener('close', () => { if ($('#settings').returnValue === 'save') saveSettings(); });
+$('#up-cancel').onclick = () => { up.queue.length = 0; up.xhr?.abort(); };
+$('#filter').oninput = e => { state.filter = e.target.value; if (state.path) render(); };
+$('#sort').value = state.sort;
+$('#sort').onchange = e => { state.sort = e.target.value; store.set('sort', state.sort); if (state.path) render(); };
+
+$('#sheet').addEventListener('click', ev => {
+  const dlg = $('#sheet');
+  if (ev.target === dlg) return dlg.close();               // tap on the backdrop
+  const btn = ev.target.closest('[data-act], #sheet-dl');
+  if (!btn) return;
+  dlg.close();
+  if (btn.dataset.act) act(btn.dataset.act, sheetEntry);   // the download link handles itself
+});
+$('#settings').addEventListener('click', ev => { if (ev.target === $('#settings')) $('#settings').close(); });
+
+$('#v-close').onclick = () => history.back();
+$('#v-prev').onclick = () => step(-1);
+$('#v-next').onclick = () => step(1);
+window.addEventListener('popstate', () => { if (!$('#viewer').hidden) hideViewer(); });
+document.addEventListener('keydown', ev => {
+  if ($('#viewer').hidden) return;
+  if (ev.key === 'Escape') history.back();
+  if (ev.key === 'ArrowLeft') step(-1);
+  if (ev.key === 'ArrowRight') step(1);
+});
+let touchX = null;
+$('#v-stage').addEventListener('touchstart', ev => { touchX = ev.touches.length === 1 ? ev.touches[0].clientX : null; }, { passive: true });
+$('#v-stage').addEventListener('touchend', ev => {
+  if (touchX == null || !$('#v-stage img')) return;
+  const dx = ev.changedTouches[0].clientX - touchX;
+  touchX = null;
+  if (Math.abs(dx) > 60) step(dx < 0 ? 1 : -1);
+});
+
+let dragDepth = 0;
+document.addEventListener('dragenter', ev => { if (state.path && ev.dataTransfer?.types.includes('Files')) { dragDepth++; document.body.classList.add('drop'); } });
+document.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove('drop'); } });
+document.addEventListener('dragover', ev => ev.preventDefault());
+document.addEventListener('drop', ev => {
+  ev.preventDefault();
+  dragDepth = 0;
+  document.body.classList.remove('drop');
+  if (state.path && ev.dataTransfer?.files.length) enqueue(ev.dataTransfer.files);
+});
+window.addEventListener('beforeunload', ev => { if (up.running) ev.preventDefault(); });
+window.addEventListener('hashchange', () => { if (state.root) route(); });
+
+async function start() {
+  state.root = state.path = null;
+  if (location.protocol === 'file:') {
+    return showMsg(['This page has to be opened from the stick, not from your disk.',
+      'Copy unstuck.html onto the stick, join the stick’s Wi‑Fi, then open it at the stick’s address (see the README).']);
+  }
+  busy(true);
+  try { state.root = await detectRoot(); }
+  catch (err) { busy(false); return fail(err); }
+  busy(false);
+  if (!state.root) {
+    return showMsg(['The stick answered, but I couldn’t find its file share.',
+      'Open Settings and enter the WebDAV root by hand (the probe script tells you which one).'],
+      { label: 'Settings', run: openSettings });
+  }
+  route();
+}
+
+start();
+</script>
+</body>
+</html>
